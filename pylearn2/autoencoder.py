@@ -374,6 +374,22 @@ class DenoisingAutoencoder(Autoencoder):
         corrupted = self.corruptor(inputs)
         return super(DenoisingAutoencoder, self).reconstruct(corrupted)
 
+class RobustAutoencoder(DenoisingAutoencoder):
+    """
+    An autoencoder that learns a representation of the input by
+    reconstructing based off a noisy version of its input and hidden representation.
+    """
+    def __init__(self, input_corruptor, hidden_corruptor, nvis, nhid, act_enc, act_dec, tied_weights=False, irange=1e-3, rng=90001):
+        super(RobustAutoencoder, self).__init__(input_corruptor,
+                                    nvis, nhid, act_enc, act_dec,
+                                    tied_weights=tied_weights, irange=irange, rng=rng)
+        self.hidden_corruptor = hidden_corruptor
+
+    def reconstruct(self, inputs):
+        corrupted_inputs = self.corruptor(inputs)
+        hidden = self.encode(corrupted_inputs)
+        corrupted_hidden = self.hidden_corruptor(hidden)
+        return self.decode(corrupted_hidden)
 
 class ContractiveAutoencoder(Autoencoder):
     """
