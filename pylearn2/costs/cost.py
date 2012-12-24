@@ -121,6 +121,7 @@ class Cost(object):
         return FixedVarDescr()
 
 
+
 class SumOfCosts(Cost):
     """
     Combines multiple costs by summing them.
@@ -177,10 +178,9 @@ class SumOfCosts(Cost):
         costs = []
         for cost in self.costs:
             if cost.supervised:
-                Y_to_pass = Y
+                costs.append(cost(model, X, Y, **kwargs))
             else:
-                Y_to_pass = None
-            costs.append(cost(model, X, Y_to_pass, **kwargs))
+                costs.append(cost(model, X, **kwargs))
         assert len(costs) > 0
 
         if any([cost is None for cost in costs]):
@@ -201,10 +201,9 @@ class SumOfCosts(Cost):
         indiv_results = []
         for cost in self.costs:
             if cost.supervised:
-                Y_to_pass = Y
+                result = cost.get_gradients(model, X, Y, ** kwargs)
             else:
-                Y_to_pass = None
-            result = cost.get_gradients(model, X, Y_to_pass, ** kwargs)
+                result = cost.get_gradients(model, X, ** kwargs)
             indiv_results.append(result)
 
 
@@ -247,11 +246,11 @@ class SumOfCosts(Cost):
                         + str(type(cost))+'.get_monitoring_channels'
                 raise
 
-            Y_to_pass = Y
-            if not cost.supervised:
-                Y_to_pass = None
+            if cost.supervised:
+                value = cost(model, X, Y, ** kwargs)
+            else:
+                value = cost(model, X, ** kwargs)
 
-            value = cost(model, X, Y_to_pass, ** kwargs)
             if value is not None:
                 name = ''
                 if hasattr(value, 'name') and value.name is not None:
@@ -268,6 +267,14 @@ class SumOfCosts(Cost):
 
         return reduce(merge, descrs)
 
+
+class RepeatedCost(SumOfCosts):
+    """
+    Mean cost over repeated applications of the same cost function.
+    """
+    def __init__(self, cost, K=2):
+        coeff = 1 / float(K)
+        super(RepeatedCost, self).__init__([(coeff, cost)] * K)
 
 
 class ScaledCost(Cost):
