@@ -160,6 +160,79 @@ class GaussianCorruptor(Corruptor):
         return rval
 
 
+class MultivariateGaussianCorruptor(Corruptor):
+    """
+    A Gaussian corruptor transforms inputs by adding zero
+    mean isotropic Gaussian noise.
+    """
+
+    def _exp_cov_cholesky(self, p, sigma=1.0):
+        np = numpy
+        sigma2 = sigma**2
+        C = np.zeros((p,p))
+        x = np.exp(-1./sigma2)
+        c = np.sqrt(1.0-x**2)
+        for i in xrange(p):
+            C[i,0] = x**i/c
+            for j in xrange(1, i+1):
+                C[i,j] = x**(i-j)
+        C *= c
+        return C
+
+    def _smooth_diag(self, p, corruption_level, sigma):
+        self.mu = numpy.zeros(p)
+        #self.cov = numpy.ones((p,p))
+
+        #for i in xrange(p):
+        #    for j in xrange(p):
+        #        self.cov[i,j] = numpy.exp(-(j-i)**2/(sigma**2))
+        #self.cov *= corruption_level
+        #self.L = theano.shared(numpy.linalg.cholesky(self.cov))
+        self.L = theano.shared(corruption_level * self._exp_cov_cholesky(p, sigma).T.copy())
+
+
+    def __init__(self, p, corruption_level=0.5, sigma=10., rng=2001):
+        super(MultivariateGaussianCorruptor, self).__init__(corruption_level=0.0, rng=rng)
+        self._smooth_diag(p, corruption_level, sigma)
+        #self.mu = mu
+        #self.cov = cov
+
+    def _corrupt(self, x):
+        noise = self.s_rng.normal(
+            size=x.shape,
+            avg=0,
+            std=1.0,
+            dtype=theano.config.floatX
+        )
+        #noise.eval()#{x:theano.tensor.as_tensor_variable(numpy.ones((50,1)))})
+
+        print x.dtype
+        rval = noise + theano.dot(x, self.L)
+
+        return rval
+
+    def __call__(self, inputs):
+        """
+        (Symbolically) corrupt the inputs with Gaussian noise.
+
+        Parameters
+        ----------
+        inputs : tensor_like, or list of tensor_likes
+            Theano symbolic(s) representing a (list of) (mini)batch of inputs
+            to be corrupted, with the first dimension indexing training
+            examples and the second indexing data dimensions.
+
+        Returns
+        -------
+        corrupted : tensor_like, or list of tensor_likes
+            Theano symbolic(s) representing the corresponding corrupted inputs,
+            where individual inputs have been corrupted by zero mean Gaussian
+            noise with standard deviation equal to `self.corruption_level`.
+        """
+        if isinstance(inputs, tensor.Variable):
+            return self._corrupt(inputs)
+        return [self._corrupt(inp) for inp in inputs]
+
 ##################################################
 def get(str):
     """ Evaluate str into a corruptor object, if it exists """
