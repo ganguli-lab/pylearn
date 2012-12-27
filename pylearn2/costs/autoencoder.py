@@ -4,6 +4,14 @@ import warnings
 from pylearn2.costs.cost import Cost
 import numpy.random
 from theano.tensor.shared_randomstreams import RandomStreams
+from theano.sandbox.linalg import ops
+import numpy
+
+class GaussianOutputNoiseReconstructionError(Cost):
+    def __call__(self, model, X):
+        z = X - model.reconstruct(X) 
+        out = ops.trace(theano.dot(z, z.T))/X.shape[0] + ops.trace(theano.dot(theano.dot(model.weights.T, model.weights), model.hidden_corruptor.cov))
+        return out
 
 class MeanSquaredReconstructionError(Cost):
     def __call__(self, model, X):
