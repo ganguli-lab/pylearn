@@ -233,6 +233,53 @@ class MultivariateGaussianCorruptor(Corruptor):
             return self._corrupt(inputs)
         return [self._corrupt(inp) for inp in inputs]
 
+
+class GaussianScaleCorruptor(Corruptor):
+    """
+    A Gaussian corruptor transforms inputs by adding zero
+    mean isotropic Gaussian noise.
+    """
+
+    def __init__(self, stdev, rng=2001):
+        super(GaussianScaleCorruptor, self).__init__(corruption_level=stdev, rng=rng)
+
+    def _corrupt(self, x):
+        noise = self.s_rng.normal(
+            size=x.shape,
+            avg=0.,
+            std=self.corruption_level,
+            dtype=theano.config.floatX
+        )
+
+        scale = numpy.random.rand()
+
+        rval = scale * noise + x
+
+        return rval
+
+    def __call__(self, inputs):
+        """
+        (Symbolically) corrupt the inputs with Gaussian noise.
+
+        Parameters
+        ----------
+        inputs : tensor_like, or list of tensor_likes
+            Theano symbolic(s) representing a (list of) (mini)batch of inputs
+            to be corrupted, with the first dimension indexing training
+            examples and the second indexing data dimensions.
+
+        Returns
+        -------
+        corrupted : tensor_like, or list of tensor_likes
+            Theano symbolic(s) representing the corresponding corrupted inputs,
+            where individual inputs have been corrupted by zero mean Gaussian
+            noise with standard deviation equal to `self.corruption_level`.
+        """
+        if isinstance(inputs, tensor.Variable):
+            return self._corrupt(inputs)
+        return [self._corrupt(inp) for inp in inputs]
+
+
 ##################################################
 def get(str):
     """ Evaluate str into a corruptor object, if it exists """
