@@ -7,10 +7,31 @@ from theano.tensor.shared_randomstreams import RandomStreams
 from theano.sandbox.linalg import ops
 import numpy
 
+
+class MaskingHiddenNoiseReconstructionError(Cost):
+    def __init__(self, corruption_level=0.5):
+        self.q = theano.shared(corruption_level)
+
+    def __call__(self, model, X):
+        # Corrupt X
+        corrupted_inputs = model.corruptor(X)
+        hidden = model.encode(corrupted_inputs)
+
+        ex_corrupted_hidden = (1 - self.q) * hidden
+        ex_recon = model.decode(ex_corrupted_hidden)
+
+        # Trace term depends on variance
+        #var_cost = (tensor.diagonal(theano.dot(model.w_prime, model.w_prime.T)) * (self.q * (1-self.q)**2 * hidden**2).mean(axis=0)).sum()
+        var_cost = (tensor.diagonal(theano.dot(model.w_prime, model.w_prime.T))*(self.q * (1-self.q) * hidden**2).mean(axis=0)).sum()
+        recon_cost = ((ex_recon - X) **2).sum(axis=1).mean() 
+        cost = var_cost + recon_cost
+        return cost
+
 class GaussianOutputNoiseReconstructionError(Cost):
     def __call__(self, model, X):
         z = X - model.reconstruct(X) 
         out = ops.trace(theano.dot(z, z.T))/X.shape[0] + ops.trace(theano.dot(theano.dot(model.weights.T, model.weights), model.hidden_corruptor.cov))
+    #    out2 = (z*z).sum(axis=1).mean() + ops.trace(theano.dot(theano.dot(model.weights.T, model.weights), model.hidden_corruptor.cov))
         return out
 
 class MeanSquaredReconstructionError(Cost):
